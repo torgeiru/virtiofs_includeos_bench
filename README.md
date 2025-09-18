@@ -1,2 +1,2 @@
 # virtiofs_bench
-Integrity test, sequential and random read benchmark.
+Sequential and random read benchmark.
