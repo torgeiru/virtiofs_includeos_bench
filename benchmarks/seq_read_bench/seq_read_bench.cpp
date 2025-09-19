@@ -43,6 +43,7 @@ void benchmark_chunk_size(hw::VFS_device& vfs_device, int chunk_size, auto data_
     for (int run = 0; run < 30; run++) {
         // Open test file and get file handle
         auto test_fh = vfs_device.open("test_file.bin", O_RDONLY, 0);
+        printf("File handle is %zu\n", test_fh);
 
         uint64_t start_time = get_time_us();
         
@@ -58,6 +59,9 @@ void benchmark_chunk_size(hw::VFS_device& vfs_device, int chunk_size, auto data_
         
         uint64_t end_time = get_time_us();
         vfs_device.close(test_fh);
+
+
+        printf("Read %zu bytes\n", total_read);
 
         if (total_read != FILE_SIZE) {
             os::panic("Could not read entire file!");
@@ -103,6 +107,4 @@ int main() {
     
     printf("Benchmark completed. Results saved to benchmark_results.csv\n");
     os::shutdown();
-    
-    return 0;
 }

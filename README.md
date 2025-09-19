@@ -1,9 +1,4 @@
-# virtiofs_bench
-Sequential and random read benchmark.
+# 📊 virtiofs_includeos_bench
+Execute `./run_bench.sh `
 
-Tests read performance with normal FUSE_READ and with FUSE_SETUPMAPPING (DAX)
-
-Here are the future results:
-```
-results
-```
+![Benchmark Results](read_benchmark_results.png)

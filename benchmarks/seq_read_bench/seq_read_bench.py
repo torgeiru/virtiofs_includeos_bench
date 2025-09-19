@@ -18,6 +18,7 @@ FILE_SIZE_BYTES = FILE_SIZE_MB * 1024 * 1024
 TEST_FILE_NAME = "test_file.bin"
 RESULTS_FILE = "benchmark_results.csv"
 BENCHMARK_ELF = "seq_read_bench.elf.bin"
+OUTPUT_FILE = "read_benchmark_results.png"
 
 def create_test_fs():
     # Create shared folder
@@ -26,10 +27,10 @@ def create_test_fs():
     subprocess.run(["touch", f"fs/{RESULTS_FILE}"])
 
     # Create a 1MiB test file with random data
-    print(f"Creating {FILE_SIZE_MB}MiB test file: {TEST_FILE_NAME}")
+    print(f"Creating {FILE_SIZE_MB}MiB test file: fs/{TEST_FILE_NAME}")
     
     # Generate random data
-    with open(TEST_FILE_NAME, "wb") as f:
+    with open(f"fs/{TEST_FILE_NAME}", "wb") as f:
         # Write in 64KB chunks to avoid memory issues
         chunk_size = 64 * 1024
         remaining = FILE_SIZE_BYTES
@@ -42,8 +43,8 @@ def create_test_fs():
                 data[i] = (i * 73 + 17) & 0xFF  # Simple pseudo-random pattern
             f.write(data)
             remaining -= write_size
-    
-    print(f"Test file created successfully ({os.path.getsize(TEST_FILE_NAME)} bytes)")
+
+    print(f"Test file created successfully ({os.path.getsize(f'fs/{TEST_FILE_NAME}')} bytes)")
 
 def run_benchmark():
     """Execute the benchmark program."""
@@ -52,8 +53,8 @@ def run_benchmark():
     try:
         # Execute the benchmark
         print("Executing the benchmark 🍾")
-        result = subprocess.run(["boot", BENCHMARK_ELF]) # capture_output=True, text=True, timeout=300
-        
+        result = subprocess.run(["boot", BENCHMARK_ELF], timeout=300) # capture_output=True, text=True, timeout=300
+
         if result.returncode != 0:
             print(f"Benchmark failed with return code {result.returncode}")
             print(f"STDOUT: {result.stdout}")
@@ -153,9 +154,8 @@ def generate_plots(df):
     plt.tight_layout()
     
     # Save the plot
-    output_file = "read_benchmark_results.png"
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"Plot saved as: {output_file}")
+    plt.savefig(OUTPUT_FILE, dpi=300, bbox_inches='tight')
+    print(f"Plot saved as: {OUTPUT_FILE}")
     
     # Display summary statistics
     print("\n=== BENCHMARK SUMMARY ===")
@@ -201,8 +201,10 @@ def main():
         
         print("\n=== Benchmark completed successfully! ===")
         print(f"Results saved in: fs/{RESULTS_FILE}")
-        print(f"Plots saved as: read_benchmark_results.png")
-        
+        print(f"Plots saved as: {OUTPUT_FILE}")
+
+        # Step 5: Copy data back to repo
+        subprocess.run(["cp", f"fs/{RESULTS_FILE}", OUTPUT_FILE, sys.argv[1]])
         return 0
         
     except KeyboardInterrupt:
