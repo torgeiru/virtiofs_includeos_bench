@@ -1,15 +1,18 @@
 #include <os>
 #include <hal/machine.hpp>
 #include <hw/vfs_device.hpp>
-#include <fcntl.h>
+#include <fcntl.h> // For posix open flags
+#include <cstdlib>
 #include <chrono>
 #include <string>
 #include <format>
 
-#define FILE_SIZE (1024 * 1024)  // 1MiB
+#define FILE_SIZE (1024 * 1024 * 64) // 64 MiB
 #define SMALL_CHUNK 100
 #define MEDIUM_CHUNK 1024
-#define LARGE_CHUNK (64 * 1024)
+#define INCREMENTAL 8192
+#define INCREMENTAL_START 8192
+#define LARGEST_CHUNK (256 * 1024)
 
 struct BenchmarkResult {
     int chunk_size;
@@ -26,12 +29,11 @@ void write_result(hw::VFS_device& vfs_device, auto data_fh, const BenchmarkResul
         result.throughput_mbps
     );
 
-
     vfs_device.write(data_fh, results_str.data(), results_str.size());
 }
 
 void benchmark_chunk_size(hw::VFS_device& vfs_device, int chunk_size, auto data_fh) {
-    void* buffer = malloc(chunk_size);
+    void* buffer = std::malloc(chunk_size);
     if (buffer == NULL) {
         os::panic("Could not allocate chunk buffer!");
     }
@@ -73,35 +75,40 @@ void benchmark_chunk_size(hw::VFS_device& vfs_device, int chunk_size, auto data_
         write_result(vfs_device, data_fh, result);
     }
 
-    free(buffer);
+    std::free(buffer);
 }
 
 int main() {
     auto& vfs_device = os::machine().get<hw::VFS_device>(0);
 
     // Open data output file and get file handle
-    auto data_fh = vfs_device.open("benchmark_results.csv", O_WRONLY | O_TRUNC, 0644);
+    auto data_fh = vfs_device.open("benchmark_results.csv", O_CREAT | O_WRONLY, 0644);
 
     // Write CSV header
-    const char* header = "chunk_size,run_number,read_time_ms,throughput_mbps\n";
-    vfs_device.write(data_fh, (void*)header, strlen(header));
+    std::string header = "chunk_size,run_number,read_time_ms,throughput_mbps\n";
+    vfs_device.write(data_fh, header.data(), header.size());
 
-    printf("Starting sequential read benchmark...\n");
+    std::cout << "Starting sequential read benchmark\n";
 
     // Benchmark small reads (100 bytes)
-    printf("Testing small reads (100 bytes)...\n");
+    std::cout << "Testing small reads (100 bytes)\n";
     benchmark_chunk_size(vfs_device, SMALL_CHUNK, data_fh);
 
     // Benchmark medium reads (1K)
-    printf("Testing medium reads (1K)...\n");
+    std::cout << "Testing medium reads (1K)\n";
     benchmark_chunk_size(vfs_device, MEDIUM_CHUNK, data_fh);
 
-    // Benchmark large reads (64K)
-    printf("Testing large reads (64K)...\n");
-    benchmark_chunk_size(vfs_device, LARGE_CHUNK, data_fh);
+    // Benchmark incremental reads starting from 8KiB up to 256KiB
+    std::cout << "Testing incremental reads of 8KiB starting from 8KiB up to 256KiB\n";
+    for (int incremental_chunk_size = INCREMENTAL_START; 
+        incremental_chunk_size <= LARGEST_CHUNK; 
+        incremental_chunk_size +=INCREMENTAL)
+    {
+        benchmark_chunk_size(vfs_device, incremental_chunk_size, data_fh);
+    }  
 
     vfs_device.close(data_fh);
 
-    printf("Benchmark completed. Results saved to benchmark_results.csv\n");
+    std::cout << "Benchmark completed. Results saved to benchmark_results.csv\n";
     os::shutdown();
 }

@@ -1,1 +1,0 @@
-boot ./test.elf.bin

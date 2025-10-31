@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-FILE_SIZE_MB = 1
+FILE_SIZE_MB = 64
 FILE_SIZE_BYTES = FILE_SIZE_MB * 1024 * 1024
 TEST_FILE_NAME = "test_file.bin"
 RESULTS_FILE = "benchmark_results.csv"
@@ -28,9 +28,6 @@ def create_test_fs():
     subprocess.run(["mkdir", "fs"])
     subprocess.run(["touch", f"fs/{RESULTS_FILE}"])
 
-    # Create a 1MiB test file with random data
-    print(f"Creating {FILE_SIZE_MB}MiB test file: fs/{TEST_FILE_NAME}")
-    
     # Generate random data
     with open(f"fs/{TEST_FILE_NAME}", "wb") as f:
         # Write in 64KB chunks to avoid memory issues
@@ -55,7 +52,7 @@ def run_benchmark():
     try:
         # Execute the benchmark
         print("Executing the benchmark 🍾")
-        result = subprocess.run(["boot", BENCHMARK_ELF], timeout=300) # capture_output=True, text=True, timeout=300
+        result = subprocess.run(["boot", BENCHMARK_ELF], timeout=1200) # capture_output=True, text=True, timeout=300
 
         if result.returncode != 0:
             print(f"Benchmark failed with return code {result.returncode}")
@@ -88,10 +85,8 @@ def load_and_validate_results():
         
         # Validate we have expected chunk sizes and run counts
         chunk_sizes = df['chunk_size'].unique()
-        expected_chunks = [100, 1024, 65536]  # 100B, 1K, 64K
-        
+
         print(f"Found chunk sizes: {sorted(chunk_sizes)}")
-        print(f"Expected chunk sizes: {expected_chunks}")
         
         # Check run counts per chunk size
         for chunk in chunk_sizes:
@@ -112,46 +107,56 @@ def generate_plots(df):
     plt.style.use('default')
     sns.set_palette("husl")
     
-    # Create figure with subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    # Create figure with larger size and subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 12))
     
     # Prepare data with readable chunk size labels
     df_plot = df.copy()
-    df_plot['chunk_label'] = df_plot['chunk_size'].map({
-        100: '100B\n(Small)',
-        1024: '1KB\n(Medium)', 
-        65536: '64KB\n(Large)'
-    })
+    chunk_size_map = {
+        100: "100B",
+        1024: "1KiB"
+    }
+    for i in range(1, 33):
+        size = i * 8192
+        chunk_size_map[size] = f"{8*i}KiB"
+    expected_chunk_sizes = [100, 1024]
+    expected_chunk_sizes.extend([8192 * i for i in range(1, 33)])
+
+    df_plot['chunk_label'] = df_plot['chunk_size'].map(chunk_size_map)
     
     # Plot 1: Read Time
     sns.boxplot(data=df_plot, x='chunk_label', y='read_time_ms', ax=ax1)
-    ax1.set_title('Sequential Read Performance - Read Time', fontsize=14, fontweight='bold')
-    ax1.set_xlabel('Chunk Size', fontsize=12)
-    ax1.set_ylabel('Read Time (ms)', fontsize=12)
+    ax1.set_title('Sequential Read Performance - Read Time', fontsize=16, fontweight='bold')
+    ax1.set_xlabel('Chunk Size', fontsize=14)
+    ax1.set_ylabel('Read Time (ms)', fontsize=14)
     ax1.grid(True, alpha=0.3)
+    ax1.tick_params(axis='x', rotation=90, labelsize=8)
     
-    # Add statistics to read time plot
-    for i, chunk in enumerate([100, 1024, 65536]):
+    # Add statistics to read time plot (only show every 4th label to reduce clutter)
+    for i, chunk in enumerate(expected_chunk_sizes):
         chunk_data = df[df['chunk_size'] == chunk]['read_time_ms']
         median_val = chunk_data.median()
-        ax1.text(i, median_val, f'Med: {median_val:.1f}ms', 
-                ha='center', va='bottom', fontweight='bold', 
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        if i % 4 == 0 or i < 2:  # Show first two and every 4th
+            ax1.text(i, median_val, f'{median_val:.1f}', 
+                    ha='center', va='bottom', fontsize=7, fontweight='bold', 
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7))
     
     # Plot 2: Throughput
     sns.boxplot(data=df_plot, x='chunk_label', y='throughput_mbps', ax=ax2)
-    ax2.set_title('Sequential Read Performance - Throughput', fontsize=14, fontweight='bold')
-    ax2.set_xlabel('Chunk Size', fontsize=12)
-    ax2.set_ylabel('Throughput (MB/s)', fontsize=12)
+    ax2.set_title('Sequential Read Performance - Throughput', fontsize=16, fontweight='bold')
+    ax2.set_xlabel('Chunk Size', fontsize=14)
+    ax2.set_ylabel('Throughput (MB/s)', fontsize=14)
     ax2.grid(True, alpha=0.3)
+    ax2.tick_params(axis='x', rotation=90, labelsize=8)
     
-    # Add statistics to throughput plot
-    for i, chunk in enumerate([100, 1024, 65536]):
+    # Add statistics to throughput plot (only show every 4th label to reduce clutter)
+    for i, chunk in enumerate(expected_chunk_sizes):
         chunk_data = df[df['chunk_size'] == chunk]['throughput_mbps']
         median_val = chunk_data.median()
-        ax2.text(i, median_val, f'Med: {median_val:.1f}MB/s', 
-                ha='center', va='bottom', fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        if i % 4 == 0 or i < 2:  # Show first two and every 4th
+            ax2.text(i, median_val, f'{median_val:.1f}', 
+                    ha='center', va='bottom', fontsize=7, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7))
     
     plt.tight_layout()
     
@@ -161,8 +166,8 @@ def generate_plots(df):
     
     # Display summary statistics
     print("\n=== BENCHMARK SUMMARY ===")
-    for chunk in [100, 1024, 65536]:
-        chunk_name = {100: "Small (100B)", 1024: "Medium (1KB)", 65536: "Large (64KB)"}[chunk]
+    for chunk in expected_chunk_sizes:
+        chunk_name = chunk_size_map[chunk]
         chunk_data = df[df['chunk_size'] == chunk]
         
         print(f"\n{chunk_name}:")
