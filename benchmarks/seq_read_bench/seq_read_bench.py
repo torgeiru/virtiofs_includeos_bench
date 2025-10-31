@@ -7,6 +7,8 @@ Creates test files, runs benchmark, and generates performance plots.
 import os
 import subprocess
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import sys

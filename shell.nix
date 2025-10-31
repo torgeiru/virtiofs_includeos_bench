@@ -3,7 +3,7 @@
   buildpath ? "",
 
   # The unikernel to build
-  unikernel ? "./example",
+  unikernel ? "",
 
   # Enable ccache support. See overlay.nix for details.
   withCcache ? false,
@@ -11,16 +11,10 @@
   # Enable multicore suport.
   smp ? false,
 
-  # Vmrunner path for development
-  vmrunner ? import (builtins.fetchGit {
-    url = "https://github.com/torgeiru/vmrunner";
-    ref = "master";
-  }) {},
-
   # IncludeOS development path
   includeos ? import (builtins.fetchGit {
     url = "https://github.com/torgeiru/IncludeOS";
-    ref = "VirtioFS_implementation";
+    ref = "virtio_devices";
   }) {},
 }:
 let
@@ -35,11 +29,12 @@ pkgs.mkShell.override { inherit (includeos) stdenv; } rec {
       python-pkgs.matplotlib
       python-pkgs.seaborn
     ]))
-    vmrunner
+    includeos.vmrunner
     stdenv.cc
     pkgs.buildPackages.cmake
     pkgs.buildPackages.nasm
     pkgs.qemu
+    pkgs.virtiofsd
     pkgs.which
     pkgs.grub2
     pkgs.iputils
